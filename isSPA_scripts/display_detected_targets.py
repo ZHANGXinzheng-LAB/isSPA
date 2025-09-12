@@ -2,8 +2,9 @@
 
 import os, shutil
 import argparse
+from tqdm import tqdm
 
-from read_line_format import read_line_format
+from parse_star import parse_star
 
 def main():
     parser = argparse.ArgumentParser(description='This program will display detected particles from a STAR file.')
@@ -16,7 +17,7 @@ def main():
     args = parser.parse_args()
 
     star_file = args.star # "TestData_output_merge.star" isSPA输出的目标文件（去除重复之后）
-    ctf_star_file = args.ctf # 例如："./CtfFind/job006/micrographs_ctf.star"
+    ctf_star_file = args.ctf # 例如："CtfFind/job006/micrographs_ctf.star"
     project_name = args.project # 项目名称
     folder_name = args.folder # 文件夹名称
     if folder_name[-1] == '/':
@@ -27,6 +28,10 @@ def main():
     if os.path.exists(dir_name) == False:
         os.makedirs(dir_name)
 
+    truth_df = parse_star(args.star)
+    truth_groups = truth_df.groupby('MicrographName')
+
+    '''
     star_format = read_line_format(star_file)
     if star_format[-1] == 0:
         spliter = " "
@@ -35,32 +40,33 @@ def main():
     with open(star_file, 'r') as f:
         lines = f.readlines()
 
+    sorted_lines = sorted(lines[star_format[-2]:], key=lambda line: line.split(spliter)[0].split('/')[-1])
+    '''
+
     manual_pick_file = f"ManualPick/{project_name}"
     
-    name_record = "" # 用于记录前一张照片名称
+    #name_record = "" # 用于记录前一张照片名称
     data_list = []
-    for i in lines[star_format[-2]:]:
-        if i.strip():
-            new_line = " ".join(i.split(spliter))
-            # print(new_line)
-            name = (new_line.split()[0]).split('/')[-1].split('.')[0]
-            x = new_line.split()[1]
-            y = new_line.split()[2]
-            if name != name_record:
-                shutil.copyfile('Manualpick_head.star', f'{dir_name}{name}_autopick.star') # 复制relion抬头
-                if name_record != "":
-                    with open(f'{dir_name}{name_record}_autopick.star', 'a+') as g:
-                        for j in data_list:
-                            g.write(f'{j[0]} {j[1]} -999 -999 -999\n')
-                    data_list = []
-                name_record = name
+    for m_name, truth_group in tqdm(truth_groups, desc="显示颗粒"):
+        #if i.strip():
+         #   new_line = " ".join(i.split(spliter))
+            #print(new_line)
+        name = m_name.split('/')[-1].split('.')[0]
+        shutil.copyfile('Manualpick_head.star', f'{dir_name}{name}_autopick.star') # 复制relion抬头
+        for _, truth_row in truth_group.iterrows():
+            x = float(truth_row['CoordinateX'])
+            y = float(truth_row['CoordinateY'])
             data_list.append([x, y])
-            if i == lines[-2]:
-                with open(f'{dir_name}{name_record}_autopick.star', 'a+') as g:
-                        for l in data_list:
-                            g.write(f'{l[0]} {l[1]} -999 -999 -999\n')
-            #print(data_list)
-        #print(name)    
+        #x = new_line.split()[1]
+        #y = new_line.split()[2]
+        #if name != name_record:
+        
+        #if name_record != "":
+        with open(f'{dir_name}{name}_autopick.star', 'a+') as g:
+            for j in data_list:
+                g.write(f'{j[0]} {j[1]} -999 -999 -999\n')
+        data_list = []
+        #name_record = name  
 
     os.system(f'relion_manualpick --i {ctf_star_file} --odir {manual_pick_file}/ --pickname autopick --allow_save --fast_save --selection {manual_pick_file}/micrographs_selected.star --scale 0.2 --sigma_contrast 3 --black 0 --white 0 --lowpass 20 --ctf_scale 1 --particle_diameter 200')
 
