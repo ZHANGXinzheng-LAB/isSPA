@@ -37,8 +37,8 @@ export PATH=/home/user/Software/isSPA_1.1.2/isSPA_scripts:$PATH
 ```
 
 ## Answers to some frequently asked questions
-1. Which version should be used to generate projection files?
-You can use EMAN1 or EMAN2 now.
+1. Which software should I use to generate projection files?
+You can use EMAN1, EMAN2 or RELION now.
 2. What version of Python should I use?
 **Python 3**.
 3. How does isSPA use multiple GPUs?
