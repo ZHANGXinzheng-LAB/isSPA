@@ -34,6 +34,9 @@ def main():
     for k in range(jj+1):
         a = [0]*number[k]
         for i in range(number[k]):
+            # 检查该颗粒是否被排除
+            if a[i]==1:
+                continue
             # num = int(inlst_line1[i].split('\t')[0])
             # 提取中心坐标 get center coordinates
             x1 = float(particles_list[k][i].split('\t')[6].split('=')[1].split(',')[0])
@@ -45,10 +48,6 @@ def main():
             psi = float(particles_list[k][i].split('\t')[5].split('=')[1].split(',')[2])*np.pi/180
             # 提取得分 get score
             score1 = float(particles_list[k][i].split('\t')[7].split('=')[1])
-
-            # 检查该颗粒是否被排除
-            if a[i]==1:
-                continue
 
             for j in range(i+1, number[k]):
                 if a[j] == 1:
