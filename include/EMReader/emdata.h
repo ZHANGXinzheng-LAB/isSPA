@@ -131,6 +131,7 @@ class emdata
     int readHDF(const char *, int, int);
     int readHDF2(const char *, int, int);
     int readMRC(const char *, int, int);
+    inline mrcH * getHead() {return mrch;}
     emdata();
     ~emdata();
     int setSize(int x, int y = 1, int z = 1);

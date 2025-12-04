@@ -1,11 +1,14 @@
 #pragma once
 
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <stdexcept>
 #include <unordered_map>
 #include <variant>
 #include <vector>
 #include <iostream>
+#include <filesystem>
 
 using namespace std::string_literals; // makes visible operator""s
 
@@ -27,23 +30,28 @@ struct Config
         {"Euler_angles_file", ""s},
         {"Pixel_size", -1.0f},
         {"Phi_step", -1.0f},
-        {"n", -1.0f},
-        {"Voltage", -1.0f},
-        {"Cs", -1.0f}, // 单位mm
-        {"Highest_resolution", -1.0f},
-        {"Lowest_resolution", .0f},
+        {"n", 1.0f},
+        {"Voltage", 300.0f}, //单位 kV
+        {"Cs", 2.7f}, // 单位 mm
+        {"Amplitude_contrast", 0.1f},
+        {"Highest_resolution", 8.0f}, //单位 Angstrom
+        {"Lowest_resolution", 400.0f},
         {"Diameter", -1.0f},
         // optional
-        {"Score_threshold", 7.0f},
+        {"Bin", 1.0f},
+        {"Score_threshold", 6.4f},
         {"Output", ""s},
         {"First_image", 0},
         {"Last_image", 0},
-        {"GPU_ID", -1},
-        {"Window_size", 320},
-        {"Phase_flip", 0},
+        {"GPU_ID", 0},
+        {"Window_size", 512},
+        {"Phase_flip", 1},
         {"Overlap", 0},
-        {"Norm_type", 0},
-        {"Invert", 0},
+        {"Norm_type", 1},
+        {"Invert", 1},
+        {"Fourier_padding", 0}, 
+        {"FSC", ""s}, 
+        {"n(k)", ""s}
     };
 
     std::string & gets(const std::string & key) { return std::get<std::string>(value[key]); }
@@ -60,7 +68,7 @@ struct Config
           std::cout << name << " = ";
           std::visit(overloaded{
                          [](auto arg) { std::cout << arg << ' '; },
-                         [](float arg) { std::cout << std::fixed << arg << ' '; },
+                         [](float arg) { std::cout << std::fixed << std::setprecision(3) << arg << ' '; },
                          [](const std::string& arg) { std::cout << arg << ' '; },
                      },
                      val);
@@ -79,7 +87,7 @@ struct Parameters
 {
     float apix{}, kk{}, energy{}, cs{}, highres{}, lowres{}, d_m{}, thresh{};
     float lambda{}, dfu{}, dfv{}, ds{}, defocus{}, dfdiff{}, dfang{};
-    float edge_half_width{4.0f}, ampconst{0.07f};
+    float edge_width{8.0f}, ampconst{0.07f};
     float a{-10.81f}, b{1.f}, b2{0.32f}, bfactor{-18.17f}, bfactor2{-15.22f}, bfactor3{1.72f};
 
     Parameters() = default;
@@ -92,7 +100,7 @@ struct EulerData
 
     EulerData() = default;
     EulerData(const std::string & eulerf);
-    size_t size() const { return euler1.size(); };
+    size_t size() const {return euler1.size();};
 };
 
 struct LST 
@@ -108,4 +116,14 @@ struct LST
 
     static std::vector<Entry> load(const std::string & lst_path);
     static void print(const std::vector<Entry> & lst);
+};
+
+struct TextFileData
+{
+    std::vector<float> k, fsc, k1, n_k;
+    
+    TextFileData() = default;
+    void read_fsc_star(const std::string & filename);
+    void read_two_column_txt(const std::string & filename);
+    void print_all();
 };
