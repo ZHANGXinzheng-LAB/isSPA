@@ -1,48 +1,60 @@
-# isSPA_1.1.2
+# isSPA_1.2
 
-In this version, several scripts are added to do the preprocess and postprocess.
+In the version, GUI is added and several bugs are fixed.
 
 ## Update
 
-1. We previously observed that isSPA might produce inconsistent results on different machines with varying GPU cards and CUDA versions. This issue has now been partially resolved.
-  
-  Experimental tests show that this version identifies more correct particles and achieves higher resolution under the same data processing methods (including Class3D, Refine3D, Postprocess, and other subsequent processing).
-
-2. In this version, when **norm_type=1** is in the config, the computation is performed on the entire image. Experimental tests indicate that the results with **norm_type=1** are better than those with **norm_type=0**, with more particles identified.
-When **norm_type=0** is used, the large image is divided into smaller (e.g.720x720) sections for computation, and the normalization algorithm is not applied. This setting is suitable for machines with less powerful GPUs, as processing large images can be demanding on the GPU, and omitting normalization can speed up the computation.
+1. Now isSPA can be run on different GPUs (5090, 4090, 3080, 3060, 2080 Ti and A100 have been tested).
 
 ## Installation
-1.	Download HDF5 package from the official website:
-  https://support.hdfgroup.org/downloads/index.html 
-2.	Uncompress it, such as
+1.	Install virtual environment module venv (the python version should be adjusted according to your system):
 ```
-tar -xzf hdf5-1.14.5.tar.gz
+sudo apt install python3.10-venv
 ```
-4.	Install HDF5 according to **./hdf5-1.14.5/release_docs/INSTALL_Autotools.txt**.
-5.	(Recommended) Add the absolute path of the library of HDF5 to *LD_LIBRARY_PATH*. For instance,
+2.	Create virtual environment in your preferred directory:
+```
+cd /home/user/Software/
+python3 -m venv isSPA_env
+```
+3.	Activate the virtual environment:
+```
+source /home/user/Software/isSPA_env/bin/activate
+```
+4.	Install required libraries:
+```
+pip install PyQt6 nvidia-ml-py mrcfile scipy
+```
+5.  Download HDF5 package from the official website: https://support.hdfgroup.org/downloads/index.html 
+6.	Uncompress it
+```
+tar -xzf hdf5-1.14.6.tar.gz
+```
+7.	Install HDF5 according to **./hdf5-1.14.6/release_docs/INSTALL_Autotools.txt**.
+8.	(Recommended) Add the absolute path of the library of HDF5 to *LD_LIBRARY_PATH*. For instance,
 ```
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/user/Software/hdf5/lib
 ```
-6.	Enter the directory of isSPA_1.1.2, and modify *LIB_HDF5* and *INCLUDE_HDF5* in the **Makefile** according to the installation paths in step 3.
-7.	Edit the first line of **Makefile**, making sure the path of *SHELL* is correct in your system.
-8.	Execute the following commands (N is the number of available threads):
+9.	Enter the directory of isSPA_1.2, and modify *LIB_HDF5* and *INCLUDE_HDF5* in the **Makefile** according to the installation paths in step 7.
+10.	Edit the first line of **Makefile**, making sure the path of *SHELL* is correct in your system and *-arch=sm_86* corresponds to your GPUs. GPU Compute Capability can be found here: https://developer.nvidia.com/cuda-gpus
+11.	Execute the following commands (N is the number of available threads):
 ```
 make -j N
 make install
 ```
-9.  (Recommended) Add the absolute paths of **./isSPA_1.1.2/build** and **./isSPA_1.1.2/isSPA_scripts** to environment variables. For example,
+12.  (Recommended) Add the absolute paths of **./isSPA_1.2/build** and **./isSPA_1.2/isSPA_scripts** to environment variables. For example,
 ```
-export PATH=/home/user/Software/isSPA_1.1.2/build:$PATH
-export PATH=/home/user/Software/isSPA_1.1.2/isSPA_scripts:$PATH
+export PATH=/home/user/Software/isSPA_1.2/build:$PATH
+export PATH=/home/user/Software/isSPA_1.2/isSPA_scripts:$PATH
 ```
 
 ## Answers to some frequently asked questions
 1. Which software should I use to generate projection files?
-You can use EMAN1, EMAN2 or RELION now.
+It automatically uses RELION now. You can use EMAN1 or EMAN2 if you prefer.
 2. What version of Python should I use?
 **Python 3**.
 3. How does isSPA use multiple GPUs?
-You can split the entire dataset into multiple parts using the **first** and **last** parameters in the config file. Each part can then be processed on a separate GPU.
+You can use multiplt GPUs just by selecting them in the GUI now.
+
 
 ## Contributor
 Li Rui, Chen Yuanbo, Zhao Mingjie, Cheng Yuanhao
