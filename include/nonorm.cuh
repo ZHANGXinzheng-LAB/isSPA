@@ -9,11 +9,13 @@
 #include "templates.hpp"
 #include "tileimages.hpp"
 
-struct SearchNoNorm {
+struct SearchNoNorm 
+{
   Parameters para;
   EulerData euler;
 
-  struct Size {
+  struct Size 
+  {
     size_t width;
     size_t height;
   };
@@ -38,10 +40,10 @@ struct SearchNoNorm {
   void SplitImage();
   void PreprocessTemplate();
   void PickParticles(std::vector<float>& scores, float euler3);
-  void OutputScore(std::ostream& output, float euler3, std::vector<float>& scores, const TileImages & tiles, const TileImages::Tile& tile);
+  void OutputScore(std::string & output, float euler3, std::vector<float>& scores, const TileImages & tiles, const TileImages::Tile& tile);
 
-  void work(const Templates & temp, const TileImages & tiles, std::ostream & output);
-  void work_verbose(const Templates & temp, const TileImages & tiles, std::ostream & output);
+  void work(const Templates & temp, const TileImages & tiles, std::string & output);
+  void work_verbose(const Templates & temp, const TileImages & tiles, std::string & output);
 
   SearchNoNorm(const Config & c, const EulerData & e, Size img, int device = 0);
   ~SearchNoNorm();
