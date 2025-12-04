@@ -206,7 +206,7 @@ int emdata::readImage(const char * filespec, int n, int nodata)
     FILE * in = std::fopen(filespec, "r");
     if (in == nullptr) 
     {
-        std::printf("\nFile containing templates does NOT exist: \"%s\"\n", filespec);
+        std::printf("File containing templates/micrographs does NOT exist \"%s\"\n", filespec);
         std::exit(-1);
     }
     std::fclose(in);
@@ -258,7 +258,8 @@ void emdata::zero(float sig) {
   }
 }
 
-int emdata::readHDF(const char* fsp, int image_index, int nodata) {
+int emdata::readHDF(const char* fsp, int image_index, int nodata) 
+{
   if (image_index < 0) image_index = 0;
 
   if (strrchr(fsp, '/') == NULL)
@@ -449,95 +450,106 @@ int emdata::readHDF2(const char * fsp, int image_index, int nodata)
 // Can not work when read complex
 int emdata::readMRC(const char * fsp, int nodata, int n) 
 {
-  FILE * in;
-  int i, j, l, pipe = 0;
-  int ord = 0;   // 1 if the file order is MSB first
-  int mord = 0;  // 1 if the machine order is MSB first
-  float f, a, p;
-  char s[800], * m2, w;
-  unsigned char *cdata, *cdata2, c, t;
-  short * sdata = 0;
-  
-  unsigned short * usdata = 0;
-  static const char * str[] = {"char", "short", "float", "short complex", "float complex"};
-  static const char * str2[] = {"", "byte reversed", ""};
-  static const char * str3[] = {"", "compressed"};
-  int nx = header.nx;
-  int ny = header.ny;
-  int nz = header.nz;
+    FILE * in;
+    int i, j, l, pipe = 0;
+    int ord = 0;   // 1 if the file order is MSB first
+    int mord = 0;  // 1 if the machine order is MSB first
+    float f, a, p;
+    char s[800], * m2, w;
+    unsigned char * cdata, * cdata2, c, t;
+    short * sdata = 0;
 
-  if (!mrch) mrch = (mrcH*)malloc(sizeof(mrcH));
+    unsigned short * usdata = 0;
+    static const char * str[] = {"char", "short", "float", "short complex", "float complex"};
+    static const char * str2[] = {"", "byte reversed", ""};
+    static const char * str3[] = {"", "compressed"};
+    int nx = header.nx;
+    int ny = header.ny;
+    int nz = header.nz;
 
-  if (fsp == NULL) 
+    if (!mrch) mrch = (mrcH*)malloc(sizeof(mrcH));
+
+    if (fsp == NULL) 
+    {
+        in = stdin;
+    } 
+    else 
+    {
+        if (strcmp(&fsp[strlen(fsp) - 3], ".gz") == 0 || strcmp(&fsp[strlen(fsp) - 2], ".Z") == 0) 
+        {
+            sprintf(s, "zcat %s", fsp);
+            in = popen(s, "rb");
+            pipe = 1;
+        }
+        if (strcmp(&fsp[strlen(fsp) - 3], ".bz") == 0 || strcmp(&fsp[strlen(fsp) - 4], ".bz2") == 0) 
+        {
+            sprintf(s, "bzcat %s", fsp);
+            in = popen(s, "rb");
+            pipe = 1;
+        } 
+        else
+            in = fopen(fsp, "rb");
+        if (in == NULL) 
+        {
+            printf("Cannot open MRC file\n");
+            zero();
+            return -1;
+        }
+        // if (strrchr(fsp,'/')==NULL) setName(fsp);
+        // else setName(strrchr(fsp,'/')+1);
+        setPath(fsp); // 将文件路径复制到header中
+    }
+
+    if (!fread(mrch, sizeof(mrcH), 1, in)) 
+    {
+        setSize(10, 10, 1);
+        zero();
+        return -1;
+    }
+
+    mrch->labels[0][79] = 0;
+    setName(mrch->labels[0]);
+    if (header.name[0] == '!' && header.name[1] == '-') 
+    {
+        i = sscanf(header.name + 2, " %f %f %f %f %f %f %f %f %f %f %f", header.ctf, header.ctf + 1, header.ctf + 2, header.ctf + 3, header.ctf + 4, header.ctf + 5, header.ctf + 6, header.ctf + 7, header.ctf + 8, header.ctf + 9, header.ctf + 10);
+        if (i != 11) printf("Incomplete CTF info: %s\n", header.name);
+    }
+    if (header.name[0] == '!' && header.name[1] == '$') 
+    {
+        sscanf(header.name + 2, " %f,%f", header.ctf, header.ctf + 10);
+    }
+
+    // This swaps the byte order in the header on appropriate machines
+    if (is_machine_big_endian())
+        mord = 1;
+    else
+        mord = 0;
+
+    m2 = (char*)mrch;
+    if (m2[0] == 0 && m2[1] == 0) ord = 1;
+    if (mord ^ ord) 
+    {
+        for (i = 0; i < 56 * 4; i += 4) 
+        {
+            w = m2[i];
+            m2[i] = m2[i + 3];
+            m2[i + 3] = w;
+            w = m2[i + 1];
+            m2[i + 1] = m2[i + 2];
+            m2[i + 2] = w;
+        }
+    }
+
+  if (mrch->ny > 0xffff || mrch->nz > 0xffff || mrch->mode > 4 || mrch->nlabl > 11) 
   {
-    in = stdin;
-  } 
-  else 
-  {
-    if (strcmp(&fsp[strlen(fsp) - 3], ".gz") == 0 || strcmp(&fsp[strlen(fsp) - 2], ".Z") == 0) {
-      sprintf(s, "zcat %s", fsp);
-      in = popen(s, "rb");
-      pipe = 1;
-    }
-    if (strcmp(&fsp[strlen(fsp) - 3], ".bz") == 0 || strcmp(&fsp[strlen(fsp) - 4], ".bz2") == 0) {
-      sprintf(s, "bzcat %s", fsp);
-      in = popen(s, "rb");
-      pipe = 1;
-    } else
-      in = fopen(fsp, "rb");
-    if (in == NULL) {
-      printf("Cannot open MRC file\n");
-      zero();
-      return -1;
-    }
-    // if (strrchr(fsp,'/')==NULL) setName(fsp);
-    // else setName(strrchr(fsp,'/')+1);
-    setPath(fsp);
-  }
-
-  if (!fread(mrch, sizeof(mrcH), 1, in)) {
-    setSize(10, 10, 1);
-    zero();
-    return -1;
-  }
-
-  mrch->labels[0][79] = 0;
-  setName(mrch->labels[0]);
-  if (header.name[0] == '!' && header.name[1] == '-') {
-    i = sscanf(header.name + 2, " %f %f %f %f %f %f %f %f %f %f %f", header.ctf, header.ctf + 1, header.ctf + 2, header.ctf + 3, header.ctf + 4, header.ctf + 5, header.ctf + 6, header.ctf + 7, header.ctf + 8, header.ctf + 9, header.ctf + 10);
-    if (i != 11) printf("Incomplete CTF info: %s\n", header.name);
-  }
-  if (header.name[0] == '!' && header.name[1] == '$') {
-    sscanf(header.name + 2, " %f,%f", header.ctf, header.ctf + 10);
-  }
-
-  // This swaps the byte order in the header on appropriate machines
-  if (is_machine_big_endian())
-    mord = 1;
-  else
-    mord = 0;
-
-  m2 = (char*)mrch;
-  if (m2[0] == 0 && m2[1] == 0) ord = 1;
-  if (mord ^ ord) {
-    for (i = 0; i < 56 * 4; i += 4) {
-      w = m2[i];
-      m2[i] = m2[i + 3];
-      m2[i + 3] = w;
-      w = m2[i + 1];
-      m2[i + 1] = m2[i + 2];
-      m2[i + 2] = w;
-    }
-  }
-
-  if (mrch->ny > 0xffff || mrch->nz > 0xffff || mrch->mode > 4 || mrch->nlabl > 11) {
     setSize(10, 10, 1);
     printf("Invalid MRC file\n");
     zero();
     return -1;
   }
 
-  if (mrch->ny == 1) {
+  if (mrch->ny == 1) 
+  {
     printf("This appears to be a 1d file. I only read 2d files.\n");
     zero();
     return -4;
@@ -548,10 +560,13 @@ int emdata::readMRC(const char * fsp, int nodata, int n)
   if (mrch->mode == MODE_float_COMPLEX || mrch->mode == MODE_short_COMPLEX) mrch->nx *= 2;
   nx = mrch->nx;
   ny = mrch->ny;
-  if (n >= 0 && n < mrch->nz) {
+  if (n >= 0 && n < mrch->nz) 
+  {
     nz = 1;
     startz = n;
-  } else {
+  } 
+  else 
+  {
     // if(n!=-1) printf("WARNING from readMRC: section n=%d is out of valid range [0,%d] and thus
     // ignored, whole map will be read in\n",n,mrch->nz-1);
     nz = mrch->nz;
@@ -698,7 +713,8 @@ int emdata::readMRC(const char * fsp, int nodata, int n)
       return -1;
   }
 
-  if (fsp != NULL) {
+  if (fsp != NULL) 
+  {
     if (pipe)
       pclose(in);
     else
