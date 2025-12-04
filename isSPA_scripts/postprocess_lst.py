@@ -92,8 +92,8 @@ def postprocess_lst(inlst, num, center, euler_thres, scale, apix, mdir, output, 
         #   m[i-3] = int(inlst_lines[i].split('\t')[0])
         #s5 = "euler="
         #s6 = "center="
-        cx = (float(i.split('\t')[6].split('=')[1].split(',')[0]))*scale
-        cy = (float(i.split('\t')[6].split('=')[1].split(',')[1]))*scale
+        cx = np.round((float(i.split('\t')[6].split('=')[1].split(',')[0]))*scale, 6)
+        cy = np.round((float(i.split('\t')[6].split('=')[1].split(',')[1]))*scale, 6)
         dfu = round(dfu, 10) # 浮点数误差
         dfv = round(dfv, 10)
         #dfang = math.fmod(dfang-90, 360)

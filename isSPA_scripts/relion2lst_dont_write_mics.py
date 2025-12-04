@@ -35,6 +35,6 @@ elif relion_v == '3.0.8':
     write_lst(lines, star_format, lst, 0, spliter, fnum)
 else:
     if len(star_format) == 3:
-        write_lst(lines, star_format, lst, 0, spliter, fnum)
+        write_lst(lines, star_format, lst, 0, spliter, fnum, 1)
     else:
-        write_lst(lines, star_format, lst, 1, spliter, fnum)
+        write_lst(lines, star_format, lst, 1, spliter, fnum, 1)

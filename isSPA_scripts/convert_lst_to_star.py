@@ -13,6 +13,8 @@ def main():
     #num = 0
     #mag = 50000/apix
     #k = 3
+    if mdir[-1] != '/':
+        mdir += '/'
 
     data = []
     for i in inlst_lines:
@@ -56,9 +58,9 @@ def main():
         euler2 = round(euler2, 4)
         euler3 = math.fmod(euler3+90, 360)
         euler3 = round(euler3, 4)
-        data.append(str(micrograph_name)+"\t"+str(cx)+"\t"+str(cy)+"\t"+str(dfu)+"\t"+str(dfv)+"\t"+str(dfang)+"\t300.000000\t2.700000\t0.070000\t"+str(apix)+"\t"+str(euler2)+"\t"+str(euler1)+"\t"+str(euler3)+"\n")
+        data.append(str(micrograph_name)+"\t"+str(cx)+"\t"+str(cy)+"\t"+str(dfu)+"\t"+str(dfv)+"\t"+str(dfang)+"\t300.000000\t2.700000\t0.070000\t"+str(apix)+"\t"+str(euler2)+"\t"+str(euler1)+"\t"+str(euler3)+"\t"+str(score)+"\n")
     with open(output, "w") as oo:
-        oo.write("# RELION; version 3.0-beta-2\n\ndata_\n\nloop_\n_rlnMicrographName #1 \n_rlnCoordinateX #2 \n_rlnCoordinateY #3 \n_rlnDefocusU #4 \n_rlnDefocusV #5 \n_rlnDefocusAngle #6 \n_rlnVoltage #7 \n_rlnSphericalAberration #8 \n_rlnAmplitudeContrast #9 \n_rlnDetectorPixelSize #10 \n_rlnAngleRot #11 \n_rlnAngleTilt #12 \n_rlnAnglePsi #13 \n")
+        oo.write("# RELION; version 3.0-beta-2\n\ndata_\n\nloop_\n_rlnMicrographName #1 \n_rlnCoordinateX #2 \n_rlnCoordinateY #3 \n_rlnDefocusU #4 \n_rlnDefocusV #5 \n_rlnDefocusAngle #6 \n_rlnVoltage #7 \n_rlnSphericalAberration #8 \n_rlnAmplitudeContrast #9 \n_rlnDetectorPixelSize #10 \n_rlnAngleRot #11 \n_rlnAngleTilt #12 \n_rlnAnglePsi #13 \n_rlnAutopickFigureOfMerit #14 \n")
         for j in data:
             oo.write(j)
 

@@ -40,7 +40,7 @@ def read_line_format(file):
                         if block == 1:
                             block += 1
             # 当行数过大时，自动退出
-            if i > 70:
+            if i > 100:
                 if len(line.split('\t')) == count1:
                     spliter = 1 # 以tab为分隔符
                 elif len(line.split()) == count1:

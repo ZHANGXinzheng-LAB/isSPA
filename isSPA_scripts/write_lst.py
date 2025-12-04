@@ -29,7 +29,7 @@ def write_lst(lines, star_format, lst, v, spliter, fnum, bin_factor):
                     file_path = file_path + f'bin{bin_factor}/'
                     file_name = file_name.replace('.mrc', f'_bin{bin_factor}.mrc')
                 #print(new_line.split())
-                dfu = float(new_line.split()[dfu_n])/1e4
+                dfu = float(new_line.split()[dfu_n])/1e4 #以微米为单位
                 dfv = float(new_line.split()[dfv_n])/1e4
                 dfang = float(new_line.split()[dfang_n])
                 defocus = (dfu + dfv)/2
