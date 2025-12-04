@@ -5,7 +5,9 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <thread>
+#include <cstdio>
 
 #include "fft.cuh"
 #include "helper.cuh"
@@ -69,11 +71,14 @@ SearchNoNorm::SearchNoNorm(const Config & c, const EulerData & e, Size img, int 
   // set nx = ny = tile_size, not using original image size
   nx = ny = tile_size;
 
-  auto blocks_one_axis = [](int length, int padding, int overlap) -> int {
+  auto blocks_one_axis = [](int length, int padding, int overlap) -> int 
+  {
     int offset = 0, blocks = 1;
-    while (offset + padding < length) {
+    while (offset + padding < length) 
+    {
       offset += padding - overlap;
-      if (offset + padding >= length) {
+      if (offset + padding >= length) 
+      {
         offset = length - padding;
       }
       ++blocks;
@@ -394,23 +399,18 @@ void SearchNoNorm::SplitImage() {
   int l = padding_size;
   int nblocks = block_x * block_y * padded_template_size / BLOCK_SIZE;
 
-  cudaMemsetAsync(pimpl->dev.padded_image.get(), 0,
-                  block_x * block_y * padded_template_size * sizeof(cufftComplex),
-                  pimpl->dev.stream);
+  cudaMemsetAsync(pimpl->dev.padded_image.get(), 0, block_x * block_y * padded_template_size * sizeof(cufftComplex), pimpl->dev.stream);
 
   // split Image into blocks with overlap
-  split_IMG<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.image.get(),
-                                                           pimpl->dev.padded_image.get(), nx, ny,
-                                                           padding_size, block_x, overlap);
+  split_IMG<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.image.get(), pimpl->dev.padded_image.get(), nx, ny, padding_size, block_x, overlap);
 
   // do normalize to all subIMGs
-  if (phase_flip == 1) {
+  if (phase_flip == 1) 
+  {
     // Inplace FFT
-    cufftExecC2C(pimpl->dev.fft.image, pimpl->dev.padded_image.get(), pimpl->dev.padded_image.get(),
-                 CUFFT_FORWARD);
+    cufftExecC2C(pimpl->dev.fft.image, pimpl->dev.padded_image.get(), pimpl->dev.padded_image.get(), CUFFT_FORWARD);
     // Scale IMG to normal size
-    scale<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(
-        pimpl->dev.padded_image.get(), block_x * block_y * padded_template_size, l * l);
+    scale<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_image.get(), block_x * block_y * padded_template_size, l * l);
     ri2ap<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_image.get(),
                                                          block_x * block_y * padded_template_size);
     compute_area_sum_ofSQR<<<nblocks, BLOCK_SIZE, 2 * BLOCK_SIZE * sizeof(float),
@@ -538,9 +538,10 @@ void SearchNoNorm::PickParticles(std::vector<float>& scores, float euler3) {
   }
 }
 
-void SearchNoNorm::OutputScore(std::ostream& output, float euler3, std::vector<float>& scores,
-                               const TileImages& tiles, const TileImages::Tile& tile) {
+void SearchNoNorm::OutputScore(std::string & output, float euler3, std::vector<float>& scores, const TileImages& tiles, const TileImages::Tile& tile) 
+{
   char buf[1024];
+  std::fstream out(output, std::ios::out | std::ios::trunc);
   for (int i = 0; i < batch_size; i++) {
     float score = scores[3 * i];
     float centerx = scores[3 * i + 1];
@@ -552,14 +553,14 @@ void SearchNoNorm::OutputScore(std::ostream& output, float euler3, std::vector<f
           "%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
           tiles.unused, tiles.rpath.c_str(), -para.defocus, para.dfdiff, para.dfang,
           euler.euler1[i], euler.euler2[i], euler3, centerx, centery, score);
-      output << buf;
+      out << buf;
       ++line_count;
     }
   }
 }
 
-void SearchNoNorm::work(const Templates& temp, const TileImages& tiles,
-                                std::ostream& output) {
+void SearchNoNorm::work(const Templates& temp, const TileImages& tiles, std::string & output) 
+{
   int idx = 1;
 
   std::printf("Device %d: Load template\n", pimpl->dev.id);
@@ -590,8 +591,8 @@ void SearchNoNorm::work(const Templates& temp, const TileImages& tiles,
   }
 }
 
-void SearchNoNorm::work_verbose(const Templates& temp, const TileImages& tiles,
-                                std::ostream& output) {
+void SearchNoNorm::work_verbose(const Templates & temp, const TileImages & tiles, std::string & output) 
+{
   int idx = 1;
 
   std::printf("Device %d: Load template\n", pimpl->dev.id);
@@ -602,21 +603,22 @@ void SearchNoNorm::work_verbose(const Templates& temp, const TileImages& tiles,
   SetParams(params);
   std::printf("Device %d: Preprocess template\n", pimpl->dev.id);
   PreprocessTemplate();
-  for (const auto& tile : tiles) {
-    std::printf("Device %d: Tile %d: center (%d, %d)\n", pimpl->dev.id, idx++, tile.center.x,
-                tile.center.y);
+  for (const auto& tile : tiles) 
+  {
+    std::printf("Device %d: Tile %d: center (%d, %d)\n", pimpl->dev.id, idx++, tile.center.x, tile.center.y);
     std::printf("Device %d: Load image\n", pimpl->dev.id);
     LoadImage(tile);
     std::printf("Device %d: Preprocess image\n", pimpl->dev.id);
     PreprocessImage();
     std::printf("Device %d: Split image\n", pimpl->dev.id);
     SplitImage();
-    std::printf("Device %d: Rotate and pick, euler3 in [0, 360), step = %f\n", pimpl->dev.id,
-                phi_step);
-    for (float euler3 = 0.0f; euler3 < 360.0f; euler3 += phi_step) {
+    std::printf("Device %d: Rotate and pick, euler3 in [0, 360), step = %f\n", pimpl->dev.id, phi_step);
+    for (float euler3 = 0.0f; euler3 < 360.0f; euler3 += phi_step) 
+    {
       PickParticles(scores, euler3);
       OutputScore(output, euler3, scores, tiles, tile);
-      if (static_cast<int>(euler3) % 10 == 0) {
+      if (static_cast<int>(euler3) % 10 == 0) 
+      {
         std::printf(".");
         std::fflush(stdout);
       }
