@@ -4,6 +4,7 @@
 #include <string>
 
 #include "DataReader2.h"
+#include "emdata.h"
 
 struct Image 
 {

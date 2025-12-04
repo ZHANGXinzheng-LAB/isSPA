@@ -7,20 +7,24 @@
 
 #include "DataReader2.h"
 
-struct TileImages {
-  struct Coord {
+struct TileImages 
+{
+  struct Coord 
+  {
     int x;
     int y;
   };
 
-  struct Tile {
+  struct Tile 
+  {
     std::unique_ptr<float[]> data;
     Coord center;
     Coord upper_left;
     Coord lower_right;
   };
 
-  struct Params {
+  struct Params 
+  {
     double defocus;
     double dfdiff;
     double dfang;
@@ -28,17 +32,20 @@ struct TileImages {
     int height;
   };
 
-  class iterator : public std::iterator<std::output_iterator_tag, Tile> {
+  class iterator : public std::iterator<std::output_iterator_tag, Tile> 
+  {
     private:
     std::vector<Tile>::iterator it;
 
     public:
     explicit iterator(std::vector<Tile>::iterator i) : it(i) {}
-    iterator& operator++() {
+    iterator& operator++() 
+    {
       ++it;
       return *this;
     }
-    iterator operator++(int) {
+    iterator operator++(int) 
+    {
       iterator retval = *this;
       ++(*this);
       return retval;
@@ -55,7 +62,8 @@ struct TileImages {
 
     public:
     explicit const_iterator(std::vector<Tile>::const_iterator i) : it(i) {}
-    const_iterator& operator++() {
+    const_iterator& operator++() 
+    {
       ++it;
       return *this;
     }

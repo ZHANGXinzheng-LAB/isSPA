@@ -14,13 +14,13 @@ bool is_little_endian();
 #define INIT_TIMEIT()                             \
   auto start = std::chrono::steady_clock().now(); \
   auto end = start;                               \
-  std::chrono::milliseconds dt_ms {}
+  std::chrono::seconds dt_ms {}
 #define TIMEIT(F)                                                             \
   start = std::chrono::steady_clock().now();                                  \
   F;                                                                          \
   end = std::chrono::steady_clock().now();                                    \
-  dt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start); \
-  std::cout << dt_ms.count() << " ms" << std::endl
+  dt_ms = std::chrono::duration_cast<std::chrono::seconds>(end - start); \
+  std::cout << dt_ms.count() << " s\n" << std::endl
 #define CHECK()                                                                                   \
   if ((cudaPeekAtLastError()) != cudaSuccess) {                                                   \
     std::printf("\"%s\" at %s:%d\n", cudaGetErrorString(cudaGetLastError()), __FILE__, __LINE__); \
