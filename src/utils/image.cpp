@@ -1,5 +1,4 @@
 #include "image.hpp"
-#include "emdata.h"
 
 Image::Image(const LST::Entry & input) : rpath(input.rpath), p(Params{input.defocus, input.dfdiff, input.dfang}), unused(input.unused) 
 {
@@ -10,7 +9,7 @@ Image::Image(const LST::Entry & input) : rpath(input.rpath), p(Params{input.defo
     auto ptr = image->getData();
     auto width = p.width = image->header.nx;
     auto height = p.height = image->header.ny;
-    std::printf("Image: %s, width: %zu, height: %zu\n", rpath.c_str(), width, height);
+    std::printf("\nImage: %s, width: %zu, height: %zu\n", rpath.c_str(), width, height);
 
     data = std::make_unique<float[]>(width * height);
     std::memcpy(data.get(), ptr, sizeof(float) * width * height);
