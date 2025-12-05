@@ -7,41 +7,42 @@ In the version, GUI is added and several bugs are fixed.
 1. Now isSPA can be run on different GPUs (5090, 4090, 3080, 3060, 2080 Ti and A100 have been tested).
 
 ## Installation
-1.	Install virtual environment module venv (the python version should be adjusted according to your system):
+1.  Download the code into a folder called isSPA_1.2
+2.	Install virtual environment module venv (the python version should be adjusted according to your system):
 ```
 sudo apt install python3.10-venv
 ```
-2.	Create virtual environment in your preferred directory:
+3.	Create virtual environment in your preferred directory:
 ```
 cd /home/user/Software/
 python3 -m venv isSPA_env
 ```
-3.	Activate the virtual environment:
+4.	Activate the virtual environment:
 ```
 source /home/user/Software/isSPA_env/bin/activate
 ```
-4.	Install required libraries:
+5.	Install required libraries:
 ```
 pip install PyQt6 nvidia-ml-py mrcfile scipy
 ```
-5.  Download HDF5 package from the official website: https://support.hdfgroup.org/downloads/index.html 
-6.	Uncompress it
+6.  Download HDF5 package from the official website: https://support.hdfgroup.org/downloads/index.html 
+7.	Uncompress it
 ```
 tar -xzf hdf5-1.14.6.tar.gz
 ```
-7.	Install HDF5 according to **./hdf5-1.14.6/release_docs/INSTALL_Autotools.txt**.
-8.	(Recommended) Add the absolute path of the library of HDF5 to *LD_LIBRARY_PATH*. For instance,
+8.	Install HDF5 according to **./hdf5-1.14.6/release_docs/INSTALL_Autotools.txt**.
+9.	(Recommended) Add the absolute path of the library of HDF5 to *LD_LIBRARY_PATH*. For instance,
 ```
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/user/Software/hdf5/lib
 ```
-9.	Enter the directory of isSPA_1.2, and modify *LIB_HDF5* and *INCLUDE_HDF5* in the **Makefile** according to the installation paths in step 7.
-10.	Edit the first line of **Makefile**, making sure the path of *SHELL* is correct in your system and *-arch=sm_86* corresponds to your GPUs. GPU Compute Capability can be found here: https://developer.nvidia.com/cuda-gpus
-11.	Execute the following commands (N is the number of available threads):
+10.	Enter the directory of isSPA_1.2, and modify *LIB_HDF5* and *INCLUDE_HDF5* in the **Makefile** according to the installation paths in step 8.
+11.	Edit the first line of **Makefile**, making sure the path of *SHELL* is correct in your system and *-arch=sm_86* corresponds to your GPUs. GPU Compute Capability can be found here: https://developer.nvidia.com/cuda-gpus
+12.	Execute the following commands (N is the number of available threads):
 ```
 make -j N
 make install
 ```
-12.  (Recommended) Add the absolute paths of **./isSPA_1.2/build** and **./isSPA_1.2/isSPA_scripts** to environment variables. For example,
+13.  (Recommended) Add the absolute paths of **./isSPA_1.2/build** and **./isSPA_1.2/isSPA_scripts** to environment variables. For example,
 ```
 export PATH=/home/user/Software/isSPA_1.2/build:$PATH
 export PATH=/home/user/Software/isSPA_1.2/isSPA_scripts:$PATH
