@@ -68,6 +68,9 @@ class InSituSPA(QMainWindow):
         self.script_path = Path(os.path.dirname(__file__))
         self.file_path = self.script_path.parent / 'files'
 
+        self.optics_group = ""
+        self.optics_group_name = ""
+
         #self.process_manager = ProcessManager()
         #self.process_manager.task_started.connect(self.on_task_started)
         #self.process_manager.task_finished.connect(self.on_task_finished)
@@ -387,7 +390,7 @@ class InSituSPA(QMainWindow):
         '''
 
         with open(f"{self.project_dir}/relion_projection_head.star", 'w') as f:
-            f.write(f"# version 50001\n\ndata_optics\n\nloop_\n_rlnOpticsGroup #1 \n_rlnOpticsGroupName #2 \n_rlnAmplitudeContrast #3 \n_rlnSphericalAberration #4 \n_rlnVoltage #5 \n_rlnImagePixelSize #6 \n_rlnImageSize #7 \n_rlnImageDimensionality #8 \n_rlnCtfDataAreCtfPremultiplied #9 \n1 opticsGroup1 0.100000 {params['cs']} {params['voltage']} {pixel_b} 400 2 0\n\n\n# version 50001\n\ndata_particles\n\nloop_\n_rlnAngleRot #1 \n_rlnAngleTilt #2 \n_rlnAnglePsi #3\n")
+            f.write(f"# version 50001\n\ndata_optics\n\nloop_\n_rlnOpticsGroup #1 \n_rlnOpticsGroupName #2 \n_rlnAmplitudeContrast #3 \n_rlnSphericalAberration #4 \n_rlnVoltage #5 \n_rlnImagePixelSize #6 \n_rlnImageSize #7 \n_rlnImageDimensionality #8 \n_rlnCtfDataAreCtfPremultiplied #9 \n{self.optics_group} {self.optics_group_name} 0.100000 {params['cs']} {params['voltage']} {pixel_b} 400 2 0\n\n\n# version 50001\n\ndata_particles\n\nloop_\n_rlnAngleRot #1 \n_rlnAngleTilt #2 \n_rlnAnglePsi #3\n")
 
         params2 = [f"{template}", f"{params['angle_step_file']}", "-p", f"{gpu_n[0]}"]
         self.task_queue.add_task('projection', "project_once.py", params2)
@@ -706,7 +709,7 @@ class InSituSPA(QMainWindow):
          #   errors.append("角度步长应在0-360度之间")
         if params['bin'] < 1.0:
             errors.append("Bin factor is smaller than one. Please check!")
-        if params['first_image'] >= params['last_image']:
+        if params['first_image'] > params['last_image']:
             errors.append("The first image number should be smaller than the last image number.")
 
         if not params['output'].endswith('.lst'):
@@ -783,6 +786,10 @@ class InSituSPA(QMainWindow):
                                 self.manual_inputs[name].setText(value)
                         elif name in self.advanced_params:
                             self.advanced_params[name].setText(value)
+                        elif name == "Optics Group":
+                            self.optics_group = value
+                        elif name == "Optics Group Name":
+                            self.optics_group_name = value
         except Exception as e:
             print(f"Loading configuration fails: {str(e)}")
             return None
@@ -800,6 +807,8 @@ class InSituSPA(QMainWindow):
                 "Template": self.manual_inputs["Template"].text(),
                 "Protein Mass (kDa)": self.manual_inputs["Protein Mass (kDa)"].currentText(),
                 "Diameter (Å)": self.manual_inputs["Diameter (Å)"].text(),
+                "Optics Group": self.optics_group,
+                "Optics Group Name": self.optics_group_name,
                 #"Recall Level": self.manual_inputs["Recall Level"].text(),
 
                 "First Image": self.manual_inputs["First Image"].text(),
@@ -970,6 +979,9 @@ class InSituSPA(QMainWindow):
             "rlnVoltage": "Voltage (kV)",
             "rlnSphericalAberration": "Cs (mm)"
         }
+
+        self.optics_group_name = params.get("rlnOpticsGroupName", "")
+        self.optics_group = params.get("rlnOpticsGroup", "")
         
         for star_key, display_key in mapping.items():
             value = params.get(star_key, "")
