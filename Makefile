@@ -15,7 +15,6 @@ SRCS := \
 		src/fft.cu \
 		src/helper.cu \
 		src/kernels.cu \
-		src/nonorm.cu \
 		src/norm.cu \
 		src/EMReader/DataReader2.cpp \
 		src/EMReader/emdata.cpp \

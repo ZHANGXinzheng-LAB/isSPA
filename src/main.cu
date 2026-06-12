@@ -36,6 +36,10 @@ int main(int argc, char * argv[])
         TIMEIT(temp = Templates(conf.gets("Picking_templates"), euler.size()));
         std::string output = conf.gets("Output");
         std::filesystem::path filePath = output;
+
+        // 覆盖之前的文件
+        std::fstream output1(output, std::ios::out | std::ios::trunc);
+
         if (filePath.extension() == ".star")
         {
             int bin = conf.geti("Bin");
@@ -44,10 +48,6 @@ int main(int argc, char * argv[])
             std::fstream out_star(output, std::ios::out|std::ios::trunc);
             out_star << "\n# version 30001\n\ndata_optics\n\nloop_ \n_rlnOpticsGroupName #1 \n_rlnOpticsGroup #2 \n_rlnImageSize #3 \n_rlnMicrographOriginalPixelSize #4 \n_rlnVoltage #5 \n_rlnSphericalAberration #6 \n_rlnAmplitudeContrast #7 \n_rlnImagePixelSize #8 \n_rlnImageDimensionality #9 \n_rlnCtfDataAreCtfPremultiplied #10 \nopticsGroup1 1 " << conf.getf("Diameter") << " " << org_pix_size << " " << conf.getf("Voltage") << " " << conf.getf("Cs") << " " << conf.getf("Amplitude_contrast") << " " << pix_size << " 2 0 \n\n\n# version 30001\n\ndata_particles\n\nloop_ \n_rlnMicrographName #1 \n_rlnCoordinateX #2 \n_rlnCoordinateY #3 \n_rlnDefocusU #4 \n_rlnDefocusV #5 \n_rlnDefocusAngle #6 \n_rlnAngleRot #7 \n_rlnAngleTilt #8 \n_rlnAnglePsi #9 \n_rlnOpticsGroup #10 \n# isSPA score " <<  std::endl;
         }
-
-
-        // std::fstream output(conf.gets("Output"), std::ios::out | std::ios::trunc);
-        //std::cout << "Output file name: " << conf.gets("Output") << ".\n";
         
         if (device != -1) 
         {
@@ -62,12 +62,14 @@ int main(int argc, char * argv[])
 
                     TIMEIT(p.work_verbose(temp, image, output); std::printf("Device %d finished in ", device););
                 } 
+                /*
                 else 
                 {
                   SearchNoNorm p(conf, euler, {tile_size, tile_size}, device);
                   auto tiles = TileImages{entry};
                   TIMEIT(p.work_verbose(temp, tiles, output); std::printf("Device %d finished in ", device););
                 }
+                */
             }
         }
         /* 
