@@ -47,6 +47,7 @@ struct Config
         {"Overlap", 0},
         {"Norm_type", 1},
         {"Invert", 1},
+        {"FSC", ""s}
     };
 
     std::string & gets(const std::string & key) { return std::get<std::string>(value[key]); }
@@ -82,7 +83,7 @@ struct Parameters
 {
     float apix{}, kk{}, energy{}, cs{}, highres{}, lowres{}, d_m{}, thresh{};
     float lambda{}, dfu{}, dfv{}, ds{}, defocus{}, dfdiff{}, dfang{};
-    float edge_half_width{4.0f}, ampconst{0.07f};
+    float edge_width{8.0f}, ampconst{0.07f};
     float a{-10.81f}, b{1.f}, b2{0.32f}, bfactor{-18.17f}, bfactor2{-15.22f}, bfactor3{1.72f};
 
     Parameters() = default;

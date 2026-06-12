@@ -55,7 +55,7 @@ __global__ void generate_mask(int l, cufftComplex * mask, float r, float * res, 
     sdata[tid] = mask[i].x;
     __syncthreads();
 
-    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) 
+    for (unsigned int s = blockDim.x >> 1; s > 0; s >>= 1) 
     {
         if (tid < s) sdata[tid] += sdata[tid + s];
         __syncthreads();
@@ -81,7 +81,7 @@ __global__ void multiCount_dot(int l, cufftComplex * mask, cufftComplex * d_temp
     sdata[tid] = mask[i].x * d_templates[i].x;
     __syncthreads();
 
-    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) 
+    for (unsigned int s = blockDim.x >> 1; s > 0; s >>= 1) 
     {
         if (tid < s) sdata[tid] += sdata[tid + s];
         __syncthreads();
@@ -155,12 +155,6 @@ __global__ void whiten_Tmp(cufftComplex * data, float * ra, float * rb, int l, c
         //float fb_infile = ra[r] / rb[r];
         data[i].x = data[i].x / (float)sqrt(ra[r] / rb[r]); // 每个点的模除以圆求和后开根号的值
     }
-    /*
-    // 将极坐标转换为直角坐标
-    float tmp = data[i].x * sinf(data[i].y);
-    data[i].x = data[i].x * cosf(data[i].y);
-    data[i].y = tmp;
-    */
 }
 
 __global__ void whiten_filter_weight_Img(cufftComplex * data, float * ra, float * rb, int nx, int ny, Parameters para) 
@@ -175,32 +169,28 @@ __global__ void whiten_filter_weight_Img(cufftComplex * data, float * ra, float 
 
     float dx = min(x, nx - x);
     float dy = min(y, ny - y);
-    int r = floor(hypotf(dx, dy) + 0.5) - 1;
+    int r_round = floor(hypotf(dx, dy) + 0.5) - 1;
+    float r = hypotf(dx, dy);
     float ss = sqrtf((dx * dx / (float)(nx * nx) + dy * dy / (float)(ny * ny)) / (para.apix * para.apix));
     int l = max(nx, ny);
     float v, signal, Ncurve;
 
     // whiten
-    if (r < l / 2 && r >= 0) 
+    if (r_round < l / 2 && r_round >= 0) 
     {
-        //v = CTF_AST(x, (y + ny / 2) % ny, nx, ny, para.apix, para.dfu, para.dfv, para.dfdiff, para.dfang, para.lambda, para.cs, para.ampconst, 2);
-        v = CTF(x, y, nx, ny, para.apix, para.dfu, para.dfv, para.dfdiff, para.dfang, para.lambda, para.cs, para.ampconst, 2);
-        signal = exp(para.bfactor * ss * ss + para.bfactor2 * ss + para.bfactor3);
-        Ncurve = exp(para.a * ss * ss + para.b * ss + para.b2);
-
-        data[i].x = data[i].x / sqrt(ra[r] / rb[r]);
-        if (r > (l * para.apix / 6)) data[i].x = data[i].x * exp(-100 * ss * ss);
+        data[i].x = data[i].x / sqrt(ra[r_round] / rb[r_round]);
+        //if (r > (l * para.apix / 6)) data[i].x = data[i].x * exp(-100 * ss * ss);
     }
 
     // low pass
     if (r < l * para.apix / para.highres && r >= l * para.apix / para.lowres) {}
     else if (r >= l * para.apix / para.highres && r < l * para.apix / para.highres + 8) 
     {
-        data[i].x = data[i].x * (0.5 * cosf(PI * (r - l * para.apix / para.highres) / (2 * 8)) + 0.5);
+        data[i].x = data[i].x * (0.5 * cosf(PI * (r - l * para.apix / para.highres) / 8) + 0.5);
     } 
     else if (r >= (l * para.apix / para.lowres - 8) && r < l * para.apix / para.lowres && r >= 0) 
     {
-        data[i].x = data[i].x * (0.5 * cosf(PI * (l * para.apix / para.lowres - r) / (2 * 8)) + 0.5);
+        data[i].x = data[i].x * (0.5 * cosf(PI * (l * para.apix / para.lowres - r) / 8) + 0.5);
     } 
     else 
     {
@@ -208,10 +198,12 @@ __global__ void whiten_filter_weight_Img(cufftComplex * data, float * ra, float 
     }
 
     // apply weighting function
-    if (r < l / 2 && r >= 0) 
+    if (r <= l / 2 && r > 0) 
     {
-        Ncurve /= signal;
-        data[i].x = data[i].x * sqrt(1 / (Ncurve + para.kk * v * v));
+        v = CTF(x, y, nx, ny, para.apix, para.dfu, para.dfv, para.dfdiff, para.dfang, para.lambda, para.cs, para.ampconst, 1);
+        signal = exp(para.bfactor * ss * ss + para.bfactor2 * ss + para.bfactor3);
+        Ncurve = exp(para.a * ss * ss + para.b * ss + para.b2) / signal;
+        data[i].x = data[i].x * v / (Ncurve + para.kk * v * v);
     }
 
     // ap2ri
@@ -230,7 +222,7 @@ __global__ void set_0Hz_to_0_at_RI(cufftComplex* data)
     data[i].y = 0;
 }
 
-__global__ void apply_mask(cufftComplex * data, float d_m, float edge_half_width, int l, const int N) 
+__global__ void apply_mask(cufftComplex * data, float d_m, float edge_width, int l, const int N) 
 {
     // i <==> global ID
     auto i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -241,13 +233,13 @@ __global__ void apply_mask(cufftComplex * data, float d_m, float edge_half_width
     int y = pixel_id / l;
     d_m = 1.5 * d_m; // 蛋白质直径，单位为像素
     float r = hypotf(x - l / 2, y - l / 2);
-    if (r > (d_m / 2 + 2 * edge_half_width)) 
+    if (r > (d_m / 2 + edge_width)) 
     {
         data[i].x = 0;
     } 
-    else if (r >= d_m / 2 && r < (d_m / 2 + 2 * edge_half_width)) 
+    else if (r >= d_m / 2 && r < (d_m / 2 + edge_width)) 
     {
-        float d = 0.5 * cosf(PI * (r - d_m / 2) / (2 * edge_half_width)) + 0.5;
+        float d = 0.5 * cosf(PI * (r - d_m / 2) / edge_width) + 0.5;
         data[i].x *= d;
     }
 }
@@ -287,12 +279,87 @@ __global__ void apply_weighting_function(cufftComplex * data, int l, Parameters 
     // apply weighting function
     if (r_round < l / 2 && r_round >= 0) 
     {
-        v = CTF(x, y, l, l, para.apix, para.dfu, para.dfv, para.dfdiff, para.dfang, para.lambda, para.cs, para.ampconst, 2);
+        v = CTF(x, y, l, l, para.apix, para.dfu, para.dfv, para.dfdiff, para.dfang, para.lambda, para.cs, para.ampconst, 1);
         signal = exp(para.bfactor * ss * ss + para.bfactor2 * ss + para.bfactor3);
         Ncurve = exp(para.a * ss * ss + para.b * ss + para.b2) / signal;
         // euler_w[x]=1.68118*ss;
         data[i].x = data[i].x * v * sqrt(1 / (Ncurve + para.kk * v * v));
     }
+}
+
+__global__ void apply_weighting_function(cufftComplex * data, int l, Parameters para, const int N, float * k, float * fsc, int size) 
+{
+    // i <==> global ID
+    auto i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= N) return;
+
+    //int l = padding_size;
+    //int image_size = l * l;
+    int pixel_id = i % (l*l);
+    int x = pixel_id % l;
+    int y = pixel_id / l;
+
+    // low pass
+    float r = hypotf(min(y, l - y), min(x, l - x));
+    int r_round = floor(r + 0.5) - 1;
+    // 在最大/最小空间频率处，乘上软边界（宽度为8像素）
+    if (r <= l * para.apix / para.highres && r >= l * para.apix / para.lowres) {} 
+    else if (r > l * para.apix / para.highres && r < l * para.apix / para.highres + para.edge_width) 
+    {
+        data[i].x = data[i].x * (0.5 * cosf(PI * (r - l * para.apix / para.highres) / para.edge_width) + 0.5);
+    } 
+    else if (r < l * para.apix / para.lowres && r > (l * para.apix / para.lowres - para.edge_width)) 
+    {
+        data[i].x = data[i].x * (0.5 * cosf(PI * (l * para.apix / para.lowres - r) / para.edge_width) + 0.5);
+    } 
+    else
+    {
+        data[i].x = 0;
+    }
+    float ss = r * para.ds; // para.ds = 1 / (para.apix * padding_size)
+
+    if (r <= l / 2 && r > 0) 
+    {
+        float fsc_interp = interp_fsc(k, fsc, size, ss);
+        float w_fsc = 2 * fsc_interp / (1 + fsc_interp);
+        data[i].x = data[i].x * w_fsc;
+    }
+}
+
+__device__ float interp_fsc(const float* keys, const float* values,
+    int size, const float query) 
+{   
+    // 二分查找
+    int left = 0;
+    int right = size;
+    while(left <= right) 
+    {
+        int mid = (left + right) / 2;
+        if(keys[mid] < query) 
+        {
+            left = mid + 1;
+        } 
+        else 
+        {
+            right = mid - 1;
+        }
+    }
+
+    const int idx_l = left - 1;
+    const int idx_r = left;
+    
+    const float key_l = keys[idx_l];
+    const float key_r = keys[idx_r];
+    const float val_l = values[idx_l];
+    const float val_r = values[idx_r];
+
+    // 计算插值比例
+    const float delta = key_r - key_l;
+    const float t = (delta != 0.0f) ? ((query - key_l) / delta) : 0.5f;
+
+    // 线性插值
+    float result = val_l + t * (val_r - val_l);
+    return result;
 }
 
 __device__ float CTF(int x1, int y1, int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang, float lambda, float cs, float ampconst, int mode) 
@@ -680,7 +747,7 @@ __global__ void compute_corner_CCG(cufftComplex * CCG, cufftComplex * Tl, cufftC
     CCG[i].x = (IMG[j].x * Tl[i].x + IMG[j].y * Tl[i].y);
     CCG[i].y = (IMG[j].y * Tl[i].x - IMG[j].x * Tl[i].y);
 
-    // 施加相位偏移，使时空间中的峰值位于中心 Move center to around
+    // 施加相位偏移，使实空间中的峰值位于中心 Move center to around
     int of = (l / 2) % 2, st;
     if (of == local_y % 2)
         st = 1;

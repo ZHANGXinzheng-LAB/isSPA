@@ -16,6 +16,7 @@ __global__ void whiten_Tmp(cufftComplex* data, float* ra, float* rb, int l, cons
 __global__ void whiten_filter_weight_Img(cufftComplex* data, float* ra, float* rb, int nx, int ny, Parameters para);
 __global__ void set_0Hz_to_0_at_RI(cufftComplex* data);
 __global__ void apply_mask(cufftComplex* data, float d_m, float edge_half_width, int l, const int N);
+__global__ void apply_weighting_function(cufftComplex * data, int l, Parameters para, const int N, float * k, float * fsc, int size);
 __global__ void apply_weighting_function(cufftComplex * data, int l, Parameters para, const int N);
 __global__ void compute_area_sum_ofSQR(cufftComplex * data, float * res, int l, const int N);
 __global__ void compute_sum_sqr(cufftComplex* data, float* res, const int N);
@@ -40,3 +41,5 @@ __global__ void float2Complex(cufftComplex* c, float* f, int N);
 __global__ void do_phase_flip(cufftComplex* filter, Parameters para, int nx, int ny);
 __device__ float CTF_AST(int x1, int y1, int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang, float lambda, float cs, float ampconst, int mode);
 __device__ float CTF(int x1, int y1, int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang, float lambda, float cs, float ampconst, int mode);
+__device__ float interp_fsc(const float* keys, const float* values,
+    int size, const float query);

@@ -11,6 +11,7 @@
 #include "kernels.cuh"
 #include "norm.cuh"
 #include "smartptr.cuh"
+#include "mrc_writer.h"
 
 struct SearchNorm::impl 
 {
@@ -359,6 +360,124 @@ void SearchNorm::PreprocessTemplate()
     cudaStreamSynchronize(pimpl->dev.stream);
 }
 
+void SearchNorm::PreprocessTemplate(const std::vector<float> & k, const std::vector<float> & fsc) 
+{
+    cudaMemsetAsync(pimpl->dev.CCG.get(), 0, sizeof(cufftComplex) * N_pixel, pimpl->dev.stream);
+
+    cudaMemsetAsync(pimpl->dev.reduction_buf.get(), 0, 2 * sizeof(float) * grid_size, pimpl->dev.stream);
+
+    // 对模板求和、求平方和
+    UpdateSigma<<<grid_size, BLOCK_SIZE, BLOCK_SIZE * sizeof(float) * 2, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), pimpl->dev.reduction_buf.get(), N_pixel);
+
+    cudaMemcpyAsync(pimpl->host.reduction_buf.get(), pimpl->dev.reduction_buf.get(), 2 * sizeof(float) * grid_size, cudaMemcpyDeviceToHost, pimpl->dev.stream);
+
+    std::memset(pimpl->host.ubuf.get(), 0, 2 * batch_size * sizeof(float));
+
+    cudaStreamSynchronize(pimpl->dev.stream);
+    for (int k = 0; k < grid_size; k++) 
+    {
+        // int id = k * BLOCK_SIZE / padded_template_size;
+        pimpl->host.ubuf[2 * (k * BLOCK_SIZE / padded_template_size)] += pimpl->host.reduction_buf[2 * k];
+        // sum of value
+        pimpl->host.ubuf[2 * (k * BLOCK_SIZE / padded_template_size) + 1] += pimpl->host.reduction_buf[2 * k + 1];
+        // sum of value^2
+    }
+
+    auto sigmas = make_host_unique_pinned<double[]>(batch_size);
+    for (int i = 0; i < batch_size; i++) 
+    {
+        double mean = pimpl->host.ubuf[2 * i] / (double)(image_size); // 计算每张模板的平均值
+        sigmas[i] = std::sqrt(pimpl->host.ubuf[2 * i + 1] / (double)(image_size) - mean * mean); // 计算每张模板照片的标准差
+        if (sigmas[i] < 0 || !std::isfinite(sigmas[i])) sigmas[i] = 0;
+    }
+
+    auto dev_sigmas = make_device_unique<double[]>(batch_size);
+    // data[i]=(data[i]-em)/s;
+    cudaMemcpyAsync(dev_sigmas.get(), sigmas.get(), sizeof(double) * batch_size, cudaMemcpyHostToDevice, pimpl->dev.stream);
+    scale_each<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(padding_size, pimpl->dev.padded_templates.get(), pimpl->dev.means.get(), dev_sigmas.get(), N_pixel);
+
+    // **************************************************************
+    // apply whitening filter and do ift
+    // input: Padded IMAGE (Real SPACE)
+    // output: IMAGE_whiten (Fourier SPACE in RI)
+    // **************************************************************
+    cudaMemsetAsync(pimpl->dev.ra.get(), 0, batch_size * RA_SIZE * sizeof(float), pimpl->dev.stream);
+    cudaMemsetAsync(pimpl->dev.rb.get(), 0, batch_size * RA_SIZE * sizeof(float), pimpl->dev.stream);
+
+    // Inplace FFT 傅里叶变换
+    cufftExecC2C(pimpl->dev.fft.templates, pimpl->dev.padded_templates.get(), pimpl->dev.padded_templates.get(), CUFFT_FORWARD);
+
+    // CUFFT will enlarge VALUE to N times. Restore it
+    scale<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), N_pixel, padded_template_size);
+
+    // Whiten at fourier space
+    // contain ri2ap
+    SQRSum_by_circle<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), pimpl->dev.ra.get(), pimpl->dev.rb.get(), padding_size, padding_size, N_pixel);
+
+    // contain ap2ri
+    whiten_Tmp<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), pimpl->dev.ra.get(), pimpl->dev.rb.get(), padding_size, N_pixel);
+
+    // **************************************************************
+    // 1. lowpass
+    // 2. apply weighting function
+    // 3. normlize
+    // input: masked_whiten_IMAGE (Fourier SPACE in RI)
+    // output: PROCESSED_IMAGE (Fourier SPACE in AP)
+    // **************************************************************
+
+    //auto padded_templates1 = std::make_unique<float[]>(N_pixel);
+    //std::memset(padded_templates1.get(), 0, sizeof(float) * N_pixel);
+    //auto padded_templates2 = std::make_unique<float[]>(N_pixel);
+    float * d_k, * d_fsc;
+    int size_fsc = fsc.size();
+    cudaMalloc(&d_k, sizeof(float) * size_fsc);
+    cudaMalloc(&d_fsc, sizeof(float) * size_fsc);
+    cudaMemcpyAsync(d_k, k.data(), sizeof(float) * size_fsc, cudaMemcpyHostToDevice, pimpl->dev.stream);
+    cudaMemcpyAsync(d_fsc, fsc.data(), sizeof(float) * size_fsc, cudaMemcpyHostToDevice, pimpl->dev.stream);
+
+    apply_weighting_function<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), padding_size, para, N_pixel, d_k, d_fsc, size_fsc-1);
+
+    //cudaMemcpyAsync(padded_templates1.get(), pimpl->dev.padded_templates1.get(), sizeof(float) * N_pixel, cudaMemcpyDeviceToHost, pimpl->dev.stream);
+    //cudaMemcpyAsync(padded_templates2.get(), pimpl->dev.padded_templates2.get(), sizeof(float) * N_pixel, cudaMemcpyDeviceToHost, pimpl->dev.stream);
+    //cudaStreamSynchronize(pimpl->dev.stream);
+    //write_mrc("fsc.mrc", padded_templates1.get(), padding_size, padding_size, batch_size, 1.36f);
+    //saveDataToFile(padded_templates1.get(), N_pixel, "/cyh/inter_files/isSPA/ctf0_old.txt");
+    //saveDataToFile(padded_templates2.get(), N_pixel, "/cyh/inter_files/isSPA/isSPA_test/ctf1_new.txt");
+
+    compute_area_sum_ofSQR<<<grid_size, BLOCK_SIZE, 2 * BLOCK_SIZE * sizeof(float), pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), pimpl->dev.reduction_buf.get(), padding_size, N_pixel);
+
+    cudaMemcpyAsync(pimpl->host.reduction_buf.get(), pimpl->dev.reduction_buf.get(), 2 * sizeof(float) * grid_size, cudaMemcpyDeviceToHost, pimpl->dev.stream);
+
+    // After Reduction -> compute mean for each image
+    std::memset(pimpl->host.ubuf.get(), 0, 2 * batch_size * sizeof(float));
+    float * infile_mean = pimpl->host.ubuf.get();
+    float * counts = pimpl->host.ubuf.get() + batch_size;
+
+    cudaStreamSynchronize(pimpl->dev.stream);
+    for (int k = 0; k < grid_size; k++) 
+    {
+        //int id = k * BLOCK_SIZE / padded_template_size;
+        infile_mean[k * BLOCK_SIZE / padded_template_size] += pimpl->host.reduction_buf[2 * k]; // 对每张照片内的点模方求和
+        counts[k * BLOCK_SIZE / padded_template_size] += pimpl->host.reduction_buf[2 * k + 1];
+    }
+
+    for (int k = 0; k < batch_size; k++) 
+    {
+        infile_mean[k] = std::sqrt(infile_mean[k] / (counts[k] * counts[k]));
+    }
+    // Do Normalization with computed infile_mean[]
+    cudaMemcpyAsync(pimpl->dev.means.get(), infile_mean, sizeof(float) * batch_size, cudaMemcpyHostToDevice, pimpl->dev.stream);
+    // Contain ap2ri
+    normalize<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), padded_template_size, pimpl->dev.means.get(), N_pixel);
+    cudaMemsetAsync(pimpl->dev.means.get(), 0, batch_size * sizeof(float), pimpl->dev.stream);
+    // 傅里叶逆变换
+    cufftExecC2C(pimpl->dev.fft.templates, pimpl->dev.padded_templates.get(), pimpl->dev.padded_templates.get(), CUFFT_INVERSE);
+
+    cudaStreamSynchronize(pimpl->dev.stream);
+    cudaFree(d_k);
+    cudaFree(d_fsc);
+}
+
 void SearchNorm::PreprocessImage(const Image & img) 
 {
     int nblocks = (image_size - 1) / BLOCK_SIZE + 1;
@@ -371,7 +490,7 @@ void SearchNorm::PreprocessImage(const Image & img)
     scale<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_image.get(), image_size, image_size);
 
     // phase flipping
-    do_phase_flip<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_image.get(), para, nx, ny);
+    //do_phase_flip<<<nblocks, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_image.get(), para, nx, ny);
 
     // Whiten at fourier space
     cudaMemsetAsync(pimpl->dev.ra.get(), 0, batch_size * RA_SIZE * sizeof(float), pimpl->dev.stream);
@@ -454,7 +573,7 @@ void SearchNorm::RotateTemplate(float euler3)
     // 旋转所有模板
     rotate_subIMG<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.padded_templates.get(), pimpl->dev.CCG_buf.get(), euler3, padding_size, N_pixel);
     // 施加mask，将边缘点设为0，soft edge mask
-    apply_mask<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.CCG_buf.get(), para.d_m, para.edge_half_width, padding_size, N_pixel);
+    apply_mask<<<grid_size, BLOCK_SIZE, 0, pimpl->dev.stream>>>(pimpl->dev.CCG_buf.get(), para.d_m, para.edge_width, padding_size, N_pixel);
     // 求和，求平方和
     compute_sum_sqr<<<grid_size, BLOCK_SIZE, 2 * BLOCK_SIZE * sizeof(float), pimpl->dev.stream>>>(pimpl->dev.CCG_buf.get(), pimpl->dev.reduction_buf.get(), N_pixel);
     cudaMemcpyAsync(pimpl->host.reduction_buf.get(), pimpl->dev.reduction_buf.get(), 2 * sizeof(float) * grid_size, cudaMemcpyDeviceToHost, pimpl->dev.stream);
@@ -590,46 +709,55 @@ void SearchNorm::OutputScore(std::string & output, std::vector<float> & scores, 
     }
 }
 
-void SearchNorm::work(const Templates& temp, const Image& image, std::string & output) 
+void SearchNorm::work_verbose(const Templates & temp, const Image & image, std::string & output, const std::vector<float> & k, const std::vector<float> & fsc)
 {
-  std::vector<float> scores;
-  auto params = image.p;
+    using namespace std;
+    vector<float> scores;
+    auto params = image.p;
 
-  SetParams(params);
-  std::printf("Device %d: Load template\n", pimpl->dev.id);
-  LoadTemplate(temp);
+    SetParams(params);
+    printf("Device %d: Loading templates\n", pimpl->dev.id);
+    LoadTemplate(temp);
 
-  std::printf("Device %d: Image: %s, (%zu, %zu)\n", pimpl->dev.id, image.rpath.c_str(),
-              params.width, params.height);
-  std::printf("Device %d: Load image\n", pimpl->dev.id);
-  LoadImage(image);
+    printf("Device %d: Image: %s, (%zu, %zu)\n", pimpl->dev.id, image.rpath.c_str(), params.width, params.height);
+    printf("Device %d: Loading image\n", pimpl->dev.id);
+    LoadImage(image);
 
-  std::printf("Device %d: Preprocess template\n", pimpl->dev.id);
-  PreprocessTemplate();
-  std::printf("Device %d: Preprocess image\n", pimpl->dev.id);
-  PreprocessImage(image);
-  std::printf("Device %d: Split image\n", pimpl->dev.id);
-  SplitImage();
+    printf("Device %d: Preprocessing templates\n", pimpl->dev.id);
+    PreprocessTemplate(k, fsc);
+    printf("Device %d: Preprocessing image\n", pimpl->dev.id);
+    PreprocessImage(image);
+    printf("Device %d: Spliting image\n", pimpl->dev.id);
+    SplitImage();
 
-  std::printf("Device %d: Compute the avgs and vars of all CCGs, euler3 in [0, 360), step = %f\n", pimpl->dev.id, phi_step);
-  for (float euler3 = 0.0f; euler3 < 360.0f; euler3 += phi_step) {
-    RotateTemplate(euler3);
-    ComputeCCGSum();
-  }
-  std::printf("\n");
-  std::printf("Device %d: Compute CCG means\n", pimpl->dev.id);
-  ComputeCCGMean();
-  std::printf("Device %d: Update CCGs and compute scores, euler3 in [0, 360), step = %f\n",
-              pimpl->dev.id, phi_step);
-  for (float euler3 = 0.0f; euler3 < 360.0f; euler3 += phi_step) {
-    RotateTemplate(euler3);
-    PickParticles(scores, euler3);
-    float cur_e = 360.0f - euler3;
-    if (cur_e >= 360.0f) cur_e -= 360.0f;
-    OutputScore(output, scores, cur_e, image);
-  };
-  std::printf("\n");
-  std::printf("Device %d: Current output line count: %d\n", pimpl->dev.id, line_count);
+    printf("Device %d: Computing the avgs and vars of all CCGs, euler3 in [0, 360), step = %f\n", pimpl->dev.id, phi_step);
+    for (float euler3 = 0.0f; euler3 < 360.0f; euler3 += phi_step) 
+    {
+        RotateTemplate(euler3);
+        ComputeCCGSum();
+        if (static_cast<int>(euler3) % 72 == 0) 
+        {
+            printf(":) ");
+            fflush(stdout);
+        }
+    }
+    printf("\n");
+    printf("Device %d: Computing CCG means\n", pimpl->dev.id);
+    ComputeCCGMean();
+    printf("Device %d: Updating CCGs and computing scores, euler3 in [0, 360), step = %f\n", pimpl->dev.id, phi_step);
+    for (float euler3 = 0.0f; euler3 < 360.0f; euler3 += phi_step) 
+    {
+        RotateTemplate(euler3);
+        PickParticles(scores, euler3);
+        OutputScore(output, scores, euler3, image);
+        if (static_cast<int>(euler3) % 72 == 0) 
+        {
+            printf(":) ");
+            fflush(stdout);
+        }
+    };
+    printf("\n");
+    printf("Device %d: Current output line count: %d\n", pimpl->dev.id, line_count);
 }
 
 void SearchNorm::work_verbose(const Templates & temp, const Image & image, std::string & output) 

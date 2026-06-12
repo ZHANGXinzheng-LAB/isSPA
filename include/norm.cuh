@@ -46,6 +46,7 @@ struct SearchNorm
     void LoadTemplate(const Templates & temp);
     void LoadImage(const Image & img);
     void SetParams(const Image::Params & params);
+    void PreprocessTemplate(const std::vector<float> & k, const std::vector<float> & fsc);
     void PreprocessTemplate();
     void PreprocessImage(const Image & img);
     void SplitImage();
@@ -55,9 +56,10 @@ struct SearchNorm
     void PickParticles(std::vector<float> & scores, float euler3);
     void OutputScore(std::string & output, std::vector<float> & scores, float euler3, const Image & input);
 
-    void work(const Templates & temp, const Image & image, std::string & output);
+    void work_verbose(const Templates & temp, const Image & image, std::string & output, const std::vector<float> & k, const std::vector<float> & fsc);
     void work_verbose(const Templates & temp, const Image & image, std::string & output);
     void saveComplexToBinary(const cufftComplex* data, size_t size, const std::string& filename);
+
 };
 
 template <typename T>
