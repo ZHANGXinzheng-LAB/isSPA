@@ -17,30 +17,14 @@ int main(int argc, char * argv[])
 {
     try 
     {
-        int n_task = 1;
         Config conf(argv[1]);
         conf.print(); // 逐行展示从配置文件中读取的各个参数
-
-        TextFileData text_data;
-        std::string filename = conf.gets("FSC");
-        if (filename != "")
-        {
-            text_data.read_fsc_star(filename);
-        }
-        filename = conf.gets("n(k)");
-        if (filename != "")
-        {
-            text_data.read_two_column_txt(filename);
-        }
-        //text_data.print_all();
 
         auto lst = LST::load(conf.gets("Input")); // 从Input中读取参数（欠焦值、像散等）
         EulerData euler(conf.gets("Euler_angles_file")); // 读取欧拉角
 
         auto device = conf.geti("GPU_ID");
         std::printf("\nSelected device ID: %d\n", device);
-
-        const int fourier_pad = conf.geti("Fourier_padding");
 
         auto first = std::max(0, std::min(conf.geti("First_image"), int(lst.size() - 1)));
         auto last = std::min(conf.geti("Last_image"), std::max(0, int(lst.size())));
@@ -52,10 +36,6 @@ int main(int argc, char * argv[])
         TIMEIT(temp = Templates(conf.gets("Picking_templates"), euler.size()));
         std::string output = conf.gets("Output");
         std::filesystem::path filePath = output;
-
-        // 覆盖之前的文件
-        std::fstream output1(output, std::ios::out | std::ios::trunc);
-
         if (filePath.extension() == ".star")
         {
             int bin = conf.geti("Bin");
@@ -65,37 +45,29 @@ int main(int argc, char * argv[])
             out_star << "\n# version 30001\n\ndata_optics\n\nloop_ \n_rlnOpticsGroupName #1 \n_rlnOpticsGroup #2 \n_rlnImageSize #3 \n_rlnMicrographOriginalPixelSize #4 \n_rlnVoltage #5 \n_rlnSphericalAberration #6 \n_rlnAmplitudeContrast #7 \n_rlnImagePixelSize #8 \n_rlnImageDimensionality #9 \n_rlnCtfDataAreCtfPremultiplied #10 \nopticsGroup1 1 " << conf.getf("Diameter") << " " << org_pix_size << " " << conf.getf("Voltage") << " " << conf.getf("Cs") << " " << conf.getf("Amplitude_contrast") << " " << pix_size << " 2 0 \n\n\n# version 30001\n\ndata_particles\n\nloop_ \n_rlnMicrographName #1 \n_rlnCoordinateX #2 \n_rlnCoordinateY #3 \n_rlnDefocusU #4 \n_rlnDefocusV #5 \n_rlnDefocusAngle #6 \n_rlnAngleRot #7 \n_rlnAngleTilt #8 \n_rlnAnglePsi #9 \n_rlnOpticsGroup #10 \n# isSPA score " <<  std::endl;
         }
 
-        auto & entry = lst[first];
-        auto image = Image{entry};
-        auto params = image.p;
-        SearchNorm p(conf, euler, {params.width, params.height}, text_data, device, fourier_pad);
-        //std::printf("Total number of euler sampling: %d", euler.size());
-        std::printf("Device %d: Loading templates\n", device);
-        p.LoadTemplate(temp);
-        std::printf("Device %d: Preprocessing templates\n", device);
-        p.PreprocessTemplate();
 
-        //p.WriteTemplates("./preprocessed_templates.mrcs", 512, 512, 200, 1.189);
-
+        // std::fstream output(conf.gets("Output"), std::ios::out | std::ios::trunc);
+        //std::cout << "Output file name: " << conf.gets("Output") << ".\n";
+        
         if (device != -1) 
         {
             for (auto i = first; i < last; ++i) 
             {
+                const auto & entry = lst[i];
                 if (conf.geti("Norm_type")) 
                 {
-                    if (i == first)
-                    {
-                        TIMEIT(p.work_verbose(image, output); std::printf("Device %d finished in ", device););
-                    }
-                    else
-                    {
-                        entry = lst[i];
-                        image = Image{entry};
-                        TIMEIT(p.work_verbose(image, output); std::printf("Device %d finished in ", device););
-                    }
+                    auto image = Image{entry};
+                    auto params = image.p;
+                    SearchNorm p(conf, euler, {params.width, params.height}, device);
+
+                    TIMEIT(p.work_verbose(temp, image, output); std::printf("Device %d finished in ", device););
+                } 
+                else 
+                {
+                  SearchNoNorm p(conf, euler, {tile_size, tile_size}, device);
+                  auto tiles = TileImages{entry};
+                  TIMEIT(p.work_verbose(temp, tiles, output); std::printf("Device %d finished in ", device););
                 }
-                printf("%d micrographs are finished\n", n_task); 
-                n_task++;
             }
         }
         /* 

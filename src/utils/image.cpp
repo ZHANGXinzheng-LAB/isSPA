@@ -1,4 +1,5 @@
 #include "image.hpp"
+#include "emdata.h"
 
 Image::Image(const LST::Entry & input) : rpath(input.rpath), p(Params{input.defocus, input.dfdiff, input.dfang}), unused(input.unused) 
 {

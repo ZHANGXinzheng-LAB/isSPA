@@ -206,7 +206,7 @@ int emdata::readImage(const char * filespec, int n, int nodata)
     FILE * in = std::fopen(filespec, "r");
     if (in == nullptr) 
     {
-        std::printf("File containing templates/micrographs does NOT exist \"%s\"\n", filespec);
+        std::printf("File containing templates does NOT exist \"%s\"\n", filespec);
         std::exit(-1);
     }
     std::fclose(in);
@@ -258,8 +258,7 @@ void emdata::zero(float sig) {
   }
 }
 
-int emdata::readHDF(const char* fsp, int image_index, int nodata) 
-{
+int emdata::readHDF(const char* fsp, int image_index, int nodata) {
   if (image_index < 0) image_index = 0;
 
   if (strrchr(fsp, '/') == NULL)

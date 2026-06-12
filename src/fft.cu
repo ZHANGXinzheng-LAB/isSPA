@@ -1,7 +1,6 @@
 #include "fft.cuh"
 
-cufftHandle MakeFFTPlan(int dim0, int dim1, unsigned int batch_size) 
-{
+cufftHandle MakeFFTPlan(int dim0, int dim1, int batch_size) {
   cufftHandle plan{};
 
   constexpr int rank = 2;      // 维数

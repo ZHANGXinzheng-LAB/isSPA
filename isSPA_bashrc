@@ -1,0 +1,3 @@
+# add isSPA
+export PATH=/home/chengj/Software/isSPA_1.1.2/build:$PATH
+export PATH=/home/chengj/Software/isSPA_1.1.2/scripts:$PATH
