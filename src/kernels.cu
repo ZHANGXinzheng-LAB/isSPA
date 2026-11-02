@@ -277,7 +277,7 @@ __global__ void apply_weighting_function(cufftComplex * data, int l, Parameters 
 
     float v, signal, Ncurve;
     // apply weighting function
-    if (r_round < l / 2 && r_round >= 0) 
+    if (false && r_round < l / 2 && r_round >= 0) // weight already applied in whiten_filter_weight_Img()
     {
         v = CTF(x, y, l, l, para.apix, para.dfu, para.dfv, para.dfdiff, para.dfang, para.lambda, para.cs, para.ampconst, 1);
         signal = exp(para.bfactor * ss * ss + para.bfactor2 * ss + para.bfactor3);
