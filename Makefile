@@ -2,12 +2,10 @@ SHELL=/usr/bin/bash
 
 WD := $(shell pwd)
 TARGET_EXEC := main
+INSTALL_EXEC := scripts/isSPA
 
-LIB_HDF5 := $(WD)/../hdf5/lib
-INCLUDE_HDF5 := $(WD)/../hdf5/include
-
-LDFLAGS := -lcufft -L$(LIB_HDF5) -lhdf5 -lgomp
-CXXFLAGS := -std=c++17 -O3 -Xcompiler -fopenmp -I$(INCLUDE_HDF5) -Iinclude -Iinclude/EMReader -Iinclude/utils -arch=sm_86
+LDFLAGS := -lcufft
+CXXFLAGS := -std=c++17 -O3 -Xcompiler -fopenmp -Iinclude -Iinclude/EMReader -Iinclude/utils -arch=sm_86
 CXX := nvcc
 
 BUILD_DIR := $(WD)/build
@@ -18,15 +16,10 @@ SRCS := \
 		src/norm.cu \
 		src/EMReader/DataReader2.cpp \
 		src/EMReader/emdata.cpp \
-		src/EMReader/emhdf.cpp \
-		src/EMReader/emhdf2.cpp \
 		src/utils/image.cpp \
 		src/utils/templates.cpp \
-		src/utils/tileimages.cpp \
-		src/utils/utils.cpp
-
-MAIN := src/main.cu
-PROJECT3D := test/project3d.cpp
+		src/utils/utils.cpp \
+		src/main.cu
 
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 
@@ -41,15 +34,9 @@ $(BUILD_DIR)/%.cpp.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-project3d: $(OBJS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(OBJS) $(PROJECT3D) -o project3d $(LDFLAGS)
-
-install: $(BUILD_DIR)/$(TARGET_EXEC)
-	ln $(BUILD_DIR)/$(TARGET_EXEC) $(BUILD_DIR)/isSPA
-
-test: install
-	$(WD)/test.sh
+install: $(BUILD_DIR)/$(TARGET_EXEC) 
+	ln -fsr $(BUILD_DIR)/$(TARGET_EXEC) $(INSTALL_EXEC)
 
 .PHONY: clean
 clean:
-	-rm -r $(BUILD_DIR)
+	-rm -r $(BUILD_DIR) $(INSTALL_EXEC)

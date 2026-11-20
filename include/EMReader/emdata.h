@@ -8,10 +8,9 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "constants.h"
-#include "emhdf.h"
-#include "emhdf2.h"
 #include "type.h"
 #include "utils.h"
 

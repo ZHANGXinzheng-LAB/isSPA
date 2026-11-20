@@ -11,7 +11,6 @@
 #include "kernels.cuh"
 #include "norm.cuh"
 #include "smartptr.cuh"
-#include "mrc_writer.h"
 
 struct SearchNorm::impl 
 {

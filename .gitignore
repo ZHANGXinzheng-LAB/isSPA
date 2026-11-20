@@ -1,0 +1,4 @@
+build/**
+test/**
+scripts/isSPA
+__pycache__
