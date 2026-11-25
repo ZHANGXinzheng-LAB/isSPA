@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-import math, os, sys, random
 import argparse
 from judge_lines import judge_lines
 
-def main():
-    instar, output =  parse_command_line()
-    output = instar.split('.')[0] + output
+def relion30_to_31(instar, output):
+    output = instar.split('.star')[0] + output
     with open(instar, "r") as g:
         instar_line = g.readlines()
 
@@ -48,7 +46,7 @@ def main():
     meta_label_num_list1.extend([apix, voltage, cs, ac])
     meta_label_list1.append('_rlnMicrographOriginalPixelSize')
     meta_label_list1.extend(['_rlnVoltage', '_rlnSphericalAberration', '_rlnAmplitudeContrast'])
-    meta_label_list2.append('_rlnOpticsGroup')
+    meta_label_list2.extend(['_rlnOpticsGroup', '_rlnOriginXAngst', '_rlnOriginYAngst'])
     #   print ac,btx,bty,cs,voltage,apix,imagesize,imagediamention
     #   magnification=10000.0, detector pixel size=apix
     #   remove rln_opticsgroup rln_originXAngst rln_originYAngst
@@ -65,7 +63,7 @@ def main():
     for j,i in enumerate(meta_label_list2):
         tmp = i + ' ' + '#' + str(j+1) + '\n'
         head += tmp
-    with open(output, 'a+') as o1:
+    with open(output, 'w') as o1:
         o1.write(head)
 
     # 写数据
@@ -77,7 +75,7 @@ def main():
             for j in meta_label_num_list2:
                 tmp += line.split()[int(j)]
                 tmp += " "
-            tmp += " 1 \n"
+            tmp += " 1 0 0 \n"
             data += tmp
     with open(output, 'a+') as o1:
         o1.write(data)
@@ -94,6 +92,9 @@ def parse_command_line():
     output = args.output
 
     return instar, output
+
+def main():
+    relion30_to_31(*parse_command_line())
 
 if __name__== "__main__":
     main()

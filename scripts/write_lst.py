@@ -27,7 +27,6 @@ def write_lst(lines, star_format, lst, v, spliter, fnum, bin_factor):
                     file_path = micrograph_name.replace(file_name, '')
                 if bin_factor > 1:
                     file_path = file_path + f'bin{bin_factor}/'
-                    file_name = file_name.replace('.mrc', f'_bin{bin_factor}.mrc')
                 #print(new_line.split())
                 dfu = float(new_line.split()[dfu_n])/1e4
                 dfv = float(new_line.split()[dfv_n])/1e4

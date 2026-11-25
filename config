@@ -1,6 +1,6 @@
 Input = micrograph_ctf0.lst
 First_image = 0
-Last_image = 80
+Last_image = 999999
 Picking_templates = phi3.0_theta3.0_part1.star
 Euler_angles_file = phi3.0_theta3.0_part1.star
 Output = foobar.lst
